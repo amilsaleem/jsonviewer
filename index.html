@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-bottom: 20px;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            position: fixed;
+            height: 62%;
+            width: 100%;
+        }
+        .line-numbers {
+            padding: 10px;
+            background-color: #e1e1e1;
+            border-right: 1px solid #ccc;
+            border-radius: 4px 0 0 4px;
+            font-family: monospace;
+            text-align: right;
+            white-space: pre;
+            width: 60px;
+            box-sizing: border-box;
+            overflow: auto;
+            line-height: 1.5;
+            margin-bottom: 0;
+            margin-top: 0;
+            scrollbar-width: none;
+        }
+        .json-output {
+            flex: 1;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 0 4px 4px 0;
+            font-family: monospace;
+            white-space: pre;
+            overflow-x: auto;
+            box-sizing: border-box;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+        .json-output[contenteditable="true"]:focus {
+            outline: none;
+        }
+        .json-tree {
+            width: 300px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: Arial, sans-serif;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .json-tree ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+        .json-tree li {
+            margin: 5px 0;
+        }
+        .json-tree .collapsed > ul {
+            display: none;
+        }
+        .json-tree .collapsible::before {
+            content: '▶️ ';
+            cursor: pointer;
+        }
+        .json-tree .expanded::before {
+            content: '▼ ';
+        }
+        .json-string {
+            color: #a31515;
+        }
+        .json-number {
+            color: #098658;
+        }
+        .json-boolean {
+            color: #d73a49;
+        }
+        .json-null {
+            color: #747474;
+        }
+        .add{
+          
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding: 10px;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.3); /* Optional: adds a shadow for better visibility */
+
+        }
+    </style>
+</head>
+<body>
+    <h1>JSON Viewer</h1>
+    <textarea id="jsonInput" placeholder="Paste your JSON here..." onclick="size()"></textarea>
+    <button onclick="viewJSON()">View JSON</button>
+    <div class="container">
+        <pre id="lineNumbers" class="line-numbers"></pre>
+        <div id="jsonOutput" class="json-output" contenteditable="true" oninput="updateLineNumbers()"></div>
+        <div id="jsonTree" class="json-tree"></div>
+    </div>
+    <div class="add">
+        <h1>Hello</h1>
+    </div>
+    <script>
+        function size(){
+            document.getElementById('jsonInput').style.height = '40%'
+        }
+        function viewJSON() {
+            const input = document.getElementById('jsonInput').value;
+            const output = document.getElementById('jsonOutput');
+            const lineNumbers = document.getElementById('lineNumbers');
+            document.getElementById('jsonInput').style.height = '30px'
+            const tree = document.getElementById('jsonTree');
+            try {
+                let inputs = input.replace(/'/g, '"');
+                const normalizedInput = inputs.replace(/\btrue\b/gi, 'true').replace(/\bfalse\b/gi, 'false').replace('None', 'null');
+                const json = JSON.parse(normalizedInput);
+                const formattedJson = JSON.stringify(json, null, 2);
+                output.innerHTML = syntaxHighlight(formattedJson);
+                lineNumbers.innerHTML = generateLineNumbers(formattedJson);
+                updateLineNumbers(); // Ensure line numbers match the JSON output
+                tree.innerHTML = generateTreeView(json);
+                addCollapsibleHandlers();
+                syncScroll()
+            } catch (e) {
+                output.innerHTML = `<span style="color: red;">Error: Invalid JSON format</span>`;
+                lineNumbers.innerHTML = '';
+                document.getElementById('jsonTree').innerHTML = '';
+            }
+        }
+
+        function generateLineNumbers(text) {
+            const lines = text.split('\n');
+            let lineNumberHtml = '';
+            for (let i = 1; i <= lines.length; i++) {
+                lineNumberHtml += i + '<br>';
+            }
+            return lineNumberHtml;
+        }
+
+        function updateLineNumbers() {
+            const output = document.getElementById('jsonOutput');
+            const lineNumbers = document.getElementById('lineNumbers');
+            const text = output.innerText;
+            lineNumbers.innerHTML = generateLineNumbers(text);
+        }
+
+        function syntaxHighlight(json) {
+            return json
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"(.*?)"/g, '<span class="json-string">"$1"</span>')
+                .replace(/: (true|false)/g, ': <span class="json-boolean">$1</span>')
+                .replace(/: (null)/g, ': <span class="json-null">$1</span>')
+                .replace(/: (\d+)/g, ': <span class="json-number">$1</span>');
+        }
+
+        function generateTreeView(obj) {
+            function createTreeView(jsonObj) {
+                if (typeof jsonObj === 'object' && jsonObj !== null) {
+                    const ul = document.createElement('ul');
+                    for (const key in jsonObj) {
+                        if (Object.hasOwn(jsonObj, key)) {
+                            const li = document.createElement('li');
+                            if (typeof jsonObj[key] === 'object' && jsonObj[key] !== null) {
+                                li.classList.add('collapsible', 'collapsed');
+                                li.innerHTML = `<strong>${key}:</strong>`;
+                                li.appendChild(createTreeView(jsonObj[key]));
+                            } else {
+                                li.innerHTML = `<strong>${key}:</strong> ${formatValue(jsonObj[key])}`;
+                            }
+                            ul.appendChild(li);
+                        }
+                    }
+                    return ul;
+                }
+                return document.createElement('div');
+            }
+
+            function formatValue(value) {
+                if (typeof value === 'string') {
+                    return `<span class="json-string">"${value}"</span>`;
+                } else if (typeof value === 'number') {
+                    return `<span class="json-number">${value}</span>`;
+                } else if (typeof value === 'boolean') {
+                    return `<span class="json-boolean">${value}</span>`;
+                } else if (value === null) {
+                    return `<span class="json-null">null</span>`;
+                }
+                return value;
+            }
+
+            return createTreeView(obj).outerHTML;
+        }
+
+        function addCollapsibleHandlers() {
+            const tree = document.getElementById('jsonTree');
+            tree.addEventListener('click', (event) => {
+                const target = event.target.closest('.collapsible');
+                if (target) {
+                    event.stopPropagation();
+                    target.classList.toggle('expanded');
+                    target.classList.toggle('collapsed');
+                }
+            });
+        }
+
+        
+        function syncScroll() {
+            const output = document.getElementById('jsonOutput');
+            const lineNumbers = document.getElementById('lineNumbers');
+
+            output.addEventListener('scroll', () => {
+                lineNumbers.scrollTop = output.scrollTop;
+            });
+
+            lineNumbers.addEventListener('scroll', () => {
+                output.scrollTop = lineNumbers.scrollTop;
+            });
+        }
+    </script>
+</body>
+</html>
